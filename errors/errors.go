@@ -47,6 +47,11 @@ func NewCrawlerError(errType ErrorType, errMsg string) CrawlerError {
 	}
 }
 
+// 用于根据给定的错误值创建一个新的爬虫错误值
+func NewCrawlerErrorBy(errType ErrorType, err error) CrawlerError {
+	return NewCrawlerError(errType, err.Error())
+}
+
 func (ce *myCrawlerError) Type() ErrorType {
 	return ce.errType
 }
@@ -68,4 +73,18 @@ func (ce *myCrawlerError) genFullErrMsg() {
 	}
 	buffer.WriteString(ce.errMsg)
 	ce.fullErrMsg = fmt.Sprintf("%s", buffer.String())
+}
+
+// 代表非法的参数的错误类型
+type IllegalParameterError struct {
+	msg string
+}
+
+// 会创建一个IllegalParameterError类型的实例
+func NewIllegalParameterError(errMsg string) IllegalParameterError {
+	return IllegalParameterError{msg: fmt.Sprintf("illegal parameter: %s", strings.TrimSpace(errMsg))}
+}
+
+func (ipe IllegalParameterError) Error() string {
+	return ipe.msg
 }
