@@ -1,12 +1,15 @@
 package downloader
 
 import (
-	"log"
 	"net/http"
 
+	"../../../log"
 	"../../../module"
 	"../../stub"
 )
+
+// logger 代表日志记录器。
+var logger = log.DLogger()
 
 // 代表下载器的实现类型
 type myDownloader struct {
@@ -43,7 +46,7 @@ func (downloader *myDownloader) Download(req *module.Request) (*module.Response,
 		return nil, genParameterError("nil HTTP request")
 	}
 	downloader.ModuleInternal.IncrAcceptedCount()
-	log.Printf("Do the request (URL: %s, depth: %d)... \n", httpReq.URL, req.Depth())
+	logger.Infof("Do the request (URL: %s, depth: %d)... \n", httpReq.URL, req.Depth())
 	httpResp, err := downloader.httpClient.Do(httpReq)
 	if err != nil {
 		return nil, err
