@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 
 	"../cmap"
@@ -72,9 +73,9 @@ type myScheduler struct {
 }
 
 // 创建调度器实例
-/*func NewScheduler() Scheduler {
+func NewScheduler() Scheduler {
 	return &myScheduler{}
-}*/
+}
 
 func (sched *myScheduler) Init(requestArgs RequestArgs, dataArgs DataArgs, moduleArgs ModuleArgs) (err error) {
 	// 检查状态
@@ -189,7 +190,42 @@ func (sched *myScheduler) Start(firstHTTPReq *http.Request) (err error) {
 	if err = sched.checkBufferPoolForStart(); err != nil {
 		return
 	}
+	sched.download()
+	sched.analyze()
+	sched.pick()
+	logger.Info("Scheduler has been started.")
 
+	// 放入第一请求
+	firstReq := module.NewRequest(firstHTTPReq, 0)
+	sched.sendReq(firstReq)
+	return nil
+}
+
+func (sched *myScheduler) Stop() (err error) {
+	logger.Info("Stop scheduler...")
+	// 检查状态
+	logger.Info("Check status for stop...")
+	var oldStatus Status
+	oldStatus, err = sched.checkAndSetStatus(SCHED_STATUS_STOPPING)
+	defer func() {
+		sched.statusLock.Lock()
+		if err != nil {
+			sched.status = oldStatus
+		} else {
+			sched.status = SCHED_STATUS_STOPPED
+		}
+		sched.statusLock.Unlock()
+	}()
+	if err != nil {
+		return
+	}
+	sched.cancelFunc()
+	sched.reqBufferPool.Close()
+	sched.respBufferPool.Close()
+	sched.itemBufferPool.Close()
+	sched.errorBufferPool.Close()
+	logger.Info("Scheduler has been stopped.")
+	return nil
 }
 
 func (sched *myScheduler) Status() Status {
@@ -198,6 +234,56 @@ func (sched *myScheduler) Status() Status {
 	status = sched.status
 	sched.statusLock.RUnlock()
 	return status
+}
+
+func (sched *myScheduler) ErrorChan() <-chan error {
+	errBuffer := sched.errorBufferPool
+	errCh := make(chan error, errBuffer.BufferCap())
+	go func(errBuffer buffer.Pool, errCh chan error) {
+		for {
+			if sched.canceled() {
+				close(errCh)
+				break
+			}
+			datum, err := errBuffer.Get()
+			if err != nil {
+				logger.Warnln("The error buffer pool was closed. Break error reception.")
+				close(errCh)
+				break
+			}
+			err, ok := datum.(error)
+			if !ok {
+				errMsg := fmt.Sprintf("incorrect error type: %T", datum)
+				sendError(errors.New(errMsg), "", sched.errorBufferPool)
+				continue
+			}
+			if sched.canceled() {
+				close(errCh)
+				break
+			}
+			errCh <- err
+		}
+	}(errBuffer, errCh)
+	return errCh
+}
+
+func (sched *myScheduler) Idle() bool {
+	moduleMap := sched.registrar.GetAll()
+	for _, module := range moduleMap {
+		if module.HandlingNumber() > 0 {
+			return false
+		}
+	}
+	if sched.reqBufferPool.Total() > 0 ||
+		sched.respBufferPool.Total() > 0 ||
+		sched.itemBufferPool.Total() > 0 {
+		return false
+	}
+	return true
+}
+
+func (sched *myScheduler) Summary() SchedSummary {
+	return sched.summary
 }
 
 // 用于状态的检查，并在条件满足时设置状态
@@ -258,7 +344,6 @@ func (sched *myScheduler) registerModules(moduleArgs ModuleArgs) error {
 		}
 	}
 	logger.Infof("All pipelines have been registered. (number: %d)", len(moduleArgs.Pipelines))
-
 	return nil
 }
 
@@ -280,7 +365,7 @@ func (sched *myScheduler) download() {
 				errMsg := fmt.Sprintf("incorrect request type: %T", datum)
 				sendError(errors.New(errMsg), "", sched.errorBufferPool)
 			}
-
+			sched.downloadOne(req)
 		}
 	}()
 }
@@ -297,7 +382,143 @@ func (sched *myScheduler) downloadOne(req *module.Request) {
 	if err != nil || m == nil {
 		errMsg := fmt.Sprintf("couldn't get a downloader: %s", err)
 		sendError(errors.New(errMsg), "", sched.errorBufferPool)
-		sched
+		sched.sendReq(req)
+		return
+	}
+	downloader, ok := m.(module.Downloader)
+	if !ok {
+		errMsg := fmt.Sprintf("incorrect downloader type: %T (MID: %s)",
+			m, m.ID())
+		sendError(errors.New(errMsg), m.ID(), sched.errorBufferPool)
+		sched.sendReq(req)
+		return
+	}
+	resp, err := downloader.Download(req)
+	if resp != nil {
+		sendResp(resp, sched.respBufferPool)
+	}
+	if err != nil {
+		sendError(err, m.ID(), sched.errorBufferPool)
+	}
+}
+
+// 从响应缓冲池取出响应并解析
+// 然后把得到的条目或请求放入相应的缓冲池
+func (sched *myScheduler) analyze() {
+	go func() {
+		for {
+			if sched.canceled() {
+				break
+			}
+			datum, err := sched.respBufferPool.Get()
+			if err != nil {
+				logger.Warnln("The response buffer pool was closed. Break response reception.")
+				break
+			}
+			resp, ok := datum.(*module.Response)
+			if !ok {
+				errMsg := fmt.Sprintf("incorrect response type: %T", datum)
+				sendError(errors.New(errMsg), "", sched.errorBufferPool)
+			}
+			sched.analyzeOne(resp)
+		}
+	}()
+}
+
+// 会根据给定的响应执行解析并把结果放入相应的缓冲池
+func (sched *myScheduler) analyzeOne(resp *module.Response) {
+	if resp == nil {
+		return
+	}
+	if sched.canceled() {
+		return
+	}
+	m, err := sched.registrar.Get(module.TYPE_ANALYZER)
+	if err != nil || m == nil {
+		errMsg := fmt.Sprintf("couldn't get an analyzer: %s", err)
+		sendError(errors.New(errMsg), "", sched.errorBufferPool)
+		sendResp(resp, sched.respBufferPool)
+		return
+	}
+	analyzer, ok := m.(module.Analyzer)
+	if !ok {
+		errMsg := fmt.Sprintf("incorrect analyzer type: %T (MID: %s)",
+			m, m.ID())
+		sendError(errors.New(errMsg), m.ID(), sched.errorBufferPool)
+		sendResp(resp, sched.respBufferPool)
+		return
+	}
+	dataList, errs := analyzer.Analyze(resp)
+	if dataList != nil {
+		for _, data := range dataList {
+			if data == nil {
+				continue
+			}
+			switch d := data.(type) {
+			case *module.Request:
+				sched.sendReq(d)
+			case module.Item:
+				sendItem(d, sched.itemBufferPool)
+			default:
+				errMsg := fmt.Sprintf("Unsupported data type %T! (data: %#v)", d, d)
+				sendError(errors.New(errMsg), m.ID(), sched.errorBufferPool)
+			}
+		}
+	}
+	if errs != nil {
+		for _, err := range errs {
+			sendError(err, m.ID(), sched.errorBufferPool)
+		}
+	}
+}
+
+// 从条目缓冲池取出条目并处理
+func (sched *myScheduler) pick() {
+	go func() {
+		for {
+			if sched.canceled() {
+				break
+			}
+			datum, err := sched.itemBufferPool.Get()
+			if err != nil {
+				logger.Warnln("The item buffer pool was closed. Break item reception.")
+				break
+			}
+			item, ok := datum.(module.Item)
+			if !ok {
+				errMsg := fmt.Sprintf("incorrect item type: %T", datum)
+				sendError(errors.New(errMsg), "", sched.errorBufferPool)
+			}
+			sched.pickOne(item)
+		}
+	}()
+}
+
+// 处理给定的条目
+func (sched *myScheduler) pickOne(item module.Item) {
+	if sched.canceled() {
+		return
+	}
+	m, err := sched.registrar.Get(module.TYPE_PIPELINE)
+	if err != nil || m == nil {
+		errMsg := fmt.Sprintf("couldn't get a pipeline: %s", err)
+		sendError(errors.New(errMsg), "", sched.errorBufferPool)
+		sendItem(item, sched.itemBufferPool)
+		return
+	}
+	pipeline, ok := m.(module.Pipeline)
+	if !ok {
+		errMsg := fmt.Sprintf("incorrect pipeline type: %T (MID: %s)",
+			m, m.ID())
+		sendError(errors.New(errMsg), m.ID(), sched.errorBufferPool)
+		sendItem(item, sched.itemBufferPool)
+		return
+	}
+	errs := pipeline.Send(item)
+	if errs != nil {
+		for _, err := range errs {
+			sendError(err, m.ID(), sched.errorBufferPool)
+		}
 	}
 }
 
@@ -312,8 +533,71 @@ func (sched *myScheduler) sendReq(req *module.Request) bool {
 	}
 	httpReq := req.HTTPReq()
 	if httpReq == nil {
-
+		logger.Warnln("Ignore the request! It's HTTP request is invalid!")
+		return false
 	}
+	reqURL := httpReq.URL
+	if reqURL == nil {
+		logger.Warnln("Ignore the request! It's URL is invalid")
+		return false
+	}
+	scheme := strings.ToLower(reqURL.Scheme)
+	if scheme != "http" && scheme != "https" {
+		logger.Warnf("Ignore the request! It's URL scheme is %q, but should be %q or %q. (URL: %s)\n",
+			scheme, "http", "https", reqURL)
+		return false
+	}
+	if v := sched.urlMap.Get(reqURL.String()); v != nil {
+		logger.Warnf("Ignore the request! It's URL is repeated. (URL: %s)\n", reqURL)
+		return false
+	}
+	pd, _ := getPrimaryDomain(httpReq.Host)
+	if sched.acceptedDomainMap.Get(pd) == nil {
+		if pd == "bing.net" {
+			panic(httpReq.URL)
+		}
+		logger.Warnf("Ignore the request! It's host %q is not in accepted primary domain map. (URL: %s)\n",
+			httpReq.Host, reqURL)
+		return false
+	}
+	if req.Depth() > sched.maxDepth {
+		logger.Warnf("Ignore the request! It's depth %d is greater than %d. (URL: %s)\n",
+			req.Depth(), sched.maxDepth, reqURL)
+		return false
+	}
+	go func(req *module.Request) {
+		if err := sched.reqBufferPool.Put(req); err != nil {
+			logger.Warnln("The request buffer pool was closed. Ignore request sending.")
+		}
+	}(req)
+	sched.urlMap.Put(reqURL.String(), struct{}{})
+	return true
+}
+
+// 向响应缓冲池发送响应
+func sendResp(resp *module.Response, respBufferPool buffer.Pool) bool {
+	if resp == nil || respBufferPool == nil || respBufferPool.Closed() {
+		return false
+	}
+	go func(resp *module.Response) {
+		if err := respBufferPool.Put(resp); err != nil {
+			logger.Warnln("The response buffer pool was closed. Ignore response sending.")
+		}
+	}(resp)
+	return true
+}
+
+// 向条目缓冲池发送条目
+func sendItem(item module.Item, itemBuferPool buffer.Pool) bool {
+	if item == nil || itemBuferPool == nil || itemBuferPool.Closed() {
+		return false
+	}
+	go func(item module.Item) {
+		if err := itemBuferPool.Put(item); err != nil {
+			logger.Warnln("The item buffer pool was closed. Ignore item sending.")
+		}
+	}(item)
+	return true
 }
 
 // 用于按照给定的参数初始化缓冲池
