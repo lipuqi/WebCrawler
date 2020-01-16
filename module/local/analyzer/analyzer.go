@@ -85,7 +85,7 @@ func (analyzer *myAnalyzer) Analyze(resp *module.Response) (dataList []module.Da
 	}
 	multipleReader, err := reader.NewMultipleReader(httpResp.Body)
 	if err != nil {
-		errorList = append(errorList, getError(err.Error()))
+		errorList = append(errorList, genError(err.Error()))
 		return
 	}
 	dataList = []module.Data{}

@@ -41,40 +41,40 @@ func checkStatus(currentStatus Status, wantedStatus Status, lock sync.Locker) (e
 	}
 	switch currentStatus {
 	case SCHED_STATUS_INITIALIZING:
-		err = getError("the scheduler is being initialized!")
+		err = genError("the scheduler is being initialized!")
 	case SCHED_STATUS_STARTING:
-		err = getError("the scheduler is being started!")
+		err = genError("the scheduler is being started!")
 	case SCHED_STATUS_STOPPING:
-		err = getError("the scheduler is being stopped!")
+		err = genError("the scheduler is being stopped!")
 	}
 	if err != nil {
 		return
 	}
 	if currentStatus == SCHED_STATUS_UNINITIALIZED &&
 		(wantedStatus == SCHED_STATUS_STARTING || wantedStatus == SCHED_STATUS_STOPPING) {
-		err = getError("the scheduler has not yet been initialized!")
+		err = genError("the scheduler has not yet been initialized!")
 		return
 	}
 	switch wantedStatus {
 	case SCHED_STATUS_INITIALIZING:
 		switch currentStatus {
 		case SCHED_STATUS_STARTED:
-			err = getError("the scheduler has been started!")
+			err = genError("the scheduler has been started!")
 		}
 	case SCHED_STATUS_STARTING:
 		switch currentStatus {
 		case SCHED_STATUS_UNINITIALIZED:
-			err = getError("the scheduler has not been initialized!")
+			err = genError("the scheduler has not been initialized!")
 		case SCHED_STATUS_STARTED:
-			err = getError("the scheduler has been started!")
+			err = genError("the scheduler has been started!")
 		}
 	case SCHED_STATUS_STOPPING:
 		if currentStatus != SCHED_STATUS_STARTED {
-			err = getError("the scheduler has not been started!")
+			err = genError("the scheduler has not been started!")
 		}
 	default:
 		errMsg := fmt.Sprintf("unsupported wanted status for check! (wantedStatus: %d)", wantedStatus)
-		err = getError(errMsg)
+		err = genError(errMsg)
 	}
 	return
 }
