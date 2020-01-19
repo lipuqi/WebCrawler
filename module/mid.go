@@ -21,7 +21,7 @@ type MID string
 // 根据给定参数生成组件ID
 func GenMID(mType Type, sn uint64, mAddr net.Addr) (MID, error) {
 	if !LegalType(mType) {
-		errMsg := fmt.Sprintf("illegal module type: %s", mType)
+		errMsg := fmt.Sprintf("非法模块类型: %s", mType)
 		return "", errors.NewIllegalParameterError(errMsg)
 	}
 	letter := legalTypeLetterMap[mType]
@@ -54,38 +54,38 @@ func SplitMID(mid MID) ([]string, error) {
 	var addr string
 	midStr := string(mid)
 	if len(midStr) <= 1 {
-		return nil, errors.NewIllegalParameterError("insufficient MID")
+		return nil, errors.NewIllegalParameterError("组件MID长度不正确")
 	}
 	letter = midStr[:1]
 	if _, ok = legalLetterTypeMap[letter]; !ok {
-		return nil, errors.NewIllegalParameterError(fmt.Sprintf("illegal module type letter: %s", letter))
+		return nil, errors.NewIllegalParameterError(fmt.Sprintf("组件类型不正确: %s", letter))
 	}
 	snAndAddr := midStr[1:]
 	index := strings.LastIndex(snAndAddr, "|")
 	if index < 0 {
 		snStr = snAndAddr
 		if !legalSN(snStr) {
-			return nil, errors.NewIllegalParameterError(fmt.Sprintf("illegal module SN: %s", snStr))
+			return nil, errors.NewIllegalParameterError(fmt.Sprintf("序列号不合法: %s", snStr))
 		}
 	} else {
 		snStr = snAndAddr[:index]
 		if !legalSN(snStr) {
 			if !legalSN(snStr) {
-				return nil, errors.NewIllegalParameterError(fmt.Sprintf("illegal module SN: %s", snStr))
+				return nil, errors.NewIllegalParameterError(fmt.Sprintf("序列号不合法: %s", snStr))
 			}
 		}
 		addr = snAndAddr[index+1:]
 		index = strings.LastIndex(addr, ":")
 		if index <= 0 {
-			return nil, errors.NewIllegalParameterError(fmt.Sprintf("illegal module address: %s", addr))
+			return nil, errors.NewIllegalParameterError(fmt.Sprintf("地址不合法: %s", addr))
 		}
 		ipStr := addr[:index]
 		if ip := net.ParseIP(ipStr); ip == nil {
-			return nil, errors.NewIllegalParameterError(fmt.Sprintf("illegal module IP: %s", ipStr))
+			return nil, errors.NewIllegalParameterError(fmt.Sprintf("IP不合法: %s", ipStr))
 		}
 		portStr := addr[index+1:]
 		if _, err := strconv.ParseUint(portStr, 10, 64); err != nil {
-			return nil, errors.NewIllegalParameterError(fmt.Sprintf("illegal module port: %s", portStr))
+			return nil, errors.NewIllegalParameterError(fmt.Sprintf("端口不合法: %s", portStr))
 		}
 	}
 	return []string{letter, snStr, addr}, nil

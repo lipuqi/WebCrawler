@@ -13,7 +13,7 @@ var logger = log.DLogger()
 // 检查目录路径
 func checkDirPath(dirPath string) (absDirPath string, err error) {
 	if dirPath == "" {
-		err = fmt.Errorf("invalid dir path: %s", dirPath)
+		err = fmt.Errorf("无效的目录路径: %s", dirPath)
 		return
 	}
 	if filepath.IsAbs(dirPath) {
@@ -41,7 +41,7 @@ func checkDirPath(dirPath string) (absDirPath string, err error) {
 			return
 		}
 		if !fileInfo.IsDir() {
-			err = fmt.Errorf("not directory: %s", absDirPath)
+			err = fmt.Errorf("不是目录: %s", absDirPath)
 			return
 		}
 	}
@@ -55,10 +55,10 @@ func Record(level byte, content string) {
 	}
 	switch level {
 	case 0:
-		logger.Infoln(content)
+		logger.Info(content)
 	case 1:
 		logger.Warnln(content)
 	case 2:
-		logger.Errorln(content)
+		logger.Error(content)
 	}
 }

@@ -25,14 +25,14 @@ var (
 var logger = log.DLogger()
 
 func init() {
-	flag.StringVar(&firstURL, "first", "http://zhihu.sogou.com/zhihu?query=golang+logo",
-		"The first URL which you want to access.")
-	flag.StringVar(&domains, "domains", "zhihu.com",
-		"The primary domains which you accepted."+""+
-			"Please using comma-separated multiple domains")
-	flag.UintVar(&depth, "depth", 3, "The depth for crawling.")
+	flag.StringVar(&firstURL, "first", "http://www.bml365.com/qy/prod/v/1249-1598",
+		"您要访问的第一个URL")
+	flag.StringVar(&domains, "domains", "www.bml365.com",
+		"域名白名单"+" "+
+			"请使用逗号分隔的多个域")
+	flag.UintVar(&depth, "depth", 1, "爬行的深度")
 	flag.StringVar(&dirPath, "dir", "./pictures",
-		"The path which you want to save the image files.")
+		"您要保存图像文件的路径")
 }
 
 func Usage() {
@@ -72,15 +72,15 @@ func main() {
 	}
 	downloaders, err := lib.GetDownloaders(1)
 	if err != nil {
-		logger.Fatalf("An error occurs when creating downloaders: %s", err)
+		logger.Fatalf("创建下载器发生异常: %s", err)
 	}
 	analyzers, err := lib.GetAnalyzers(1)
 	if err != nil {
-		logger.Fatalf("An error occurs when creating analyzers: %s", err)
+		logger.Fatalf("创建分析器发生异常: %s", err)
 	}
 	pipelines, err := lib.GetPipelines(1, dirPath)
 	if err != nil {
-		logger.Fatalf("An error occurs when creating pipelines: %s", err)
+		logger.Fatalf("创建条目处理管道发生异常: %s", err)
 	}
 	moduleArgs := sched.ModuleArgs{
 		Downloaders: downloaders,
@@ -90,25 +90,25 @@ func main() {
 	// 初始化调度器
 	err = scheduler.Init(requestArgs, dataArgs, moduleArgs)
 	if err != nil {
-		logger.Fatalf("An error occurs when initializing scheduler: %s", err)
+		logger.Fatalf("初始化调度器发生异常: %s", err)
 	}
 	// 准备监控参数
-	checkInterval := time.Second
-	summarizeInterval := 100 * time.Millisecond
-	maxIdleCount := uint(5)
+	checkInterval := 2 * time.Second
+	summarizeInterval := time.Second
+	maxIdleCount := uint(15)
 	// 开始监控
 	checkCountChan := monitor.Monitor(
 		scheduler, checkInterval, summarizeInterval, maxIdleCount, true, lib.Record)
 	// 准备调度器的启动参数
 	firstHTTPReq, err := http.NewRequest("GET", firstURL, nil)
 	if err != nil {
-		logger.Fatalln(err)
+		logger.Fatal(err)
 		return
 	}
 	// 开启调度器
 	err = scheduler.Start(firstHTTPReq)
 	if err != nil {
-		logger.Fatalf("An error occurs when starting scheduler: %s", err)
+		logger.Fatalf("开启调度器发送异常: %s", err)
 	}
 	// 等待监控结束
 	<-checkCountChan

@@ -26,7 +26,7 @@ func New(mid module.MID, client *http.Client, scoreCalculator module.CalculateSc
 		return nil, err
 	}
 	if client == nil {
-		return nil, genParameterError("nil http client")
+		return nil, genParameterError("空HTTP客户端")
 	}
 	return &myDownloader{
 		ModuleInternal: moduleBase,
@@ -39,14 +39,14 @@ func (downloader *myDownloader) Download(req *module.Request) (*module.Response,
 	defer downloader.ModuleInternal.DecrHandlingNumber()
 	downloader.ModuleInternal.IncrCalledCount()
 	if req == nil {
-		return nil, genParameterError("nil request")
+		return nil, genParameterError("空的请求")
 	}
 	httpReq := req.HTTPReq()
 	if httpReq == nil {
-		return nil, genParameterError("nil HTTP request")
+		return nil, genParameterError("空的 HTTP 响应")
 	}
 	downloader.ModuleInternal.IncrAcceptedCount()
-	logger.Infof("Do the request (URL: %s, depth: %d)... \n", httpReq.URL, req.Depth())
+	logger.Infof("下载器正在进行请求 (URL: %s, depth: %d)... \n", httpReq.URL, req.Depth())
 	httpResp, err := downloader.httpClient.Do(httpReq)
 	if err != nil {
 		return nil, err

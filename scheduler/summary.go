@@ -135,7 +135,7 @@ func (ss *mySchedSummary) Struct() SummaryStruct {
 func (ss *mySchedSummary) String() string {
 	b, err := json.MarshalIndent(ss.Struct(), "", "    ")
 	if err != nil {
-		logger.Errorf("An error occurs when generating scheduler summary: %s\n", err)
+		logger.Errorf("生成调度器摘要时发生错误: %s\n", err)
 		return ""
 	}
 	return string(b)

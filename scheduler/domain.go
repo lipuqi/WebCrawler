@@ -56,5 +56,5 @@ func getPrimaryDomain(host string) (string, error) {
 		}
 		return host[pdIndex:], nil
 	}
-	return "", genError("unrecognized host")
+	return "", genError("无法识别的主机地址")
 }

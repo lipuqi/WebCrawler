@@ -2,72 +2,210 @@ package log
 
 import (
 	"fmt"
-	"io"
+	"log"
 	"os"
-	"sync"
-
-	"./base"
-	"./logrus"
+	"time"
 )
 
-// LoggerCreator 代表日志记录器的创建器。
-type LoggerCreator func(
-	level base.LogLevel,
-	format base.LogFormat,
-	writer io.Writer,
-	options []base.Option) base.MyLogger
+const (
+	PanicLevel int = iota
+	FatalLevel
+	ErrorLevel
+	WarnLevel
+	InfoLevel
+	DebugLevel
+)
 
-// loggerCreatorMap 代表日志记录器创建器的映射。
-var loggerCreatorMap = map[base.LoggerType]LoggerCreator{}
+const (
+	color_red     = uint8(iota + 91)
+	color_green   //	绿
+	color_yellow  //	黄
+	color_blue    // 	蓝
+	color_magenta //	洋红
+)
 
-// rwm 代表日志记录器创建器映射的专用锁。
-var rwm sync.RWMutex
+const (
+	fatalPrefix = "[FATAL] "
+	errorPrefix = "[ERROR] "
+	warnPrefix  = "[WARN] "
+	infoPrefix  = "[INFO] "
+	debugPrefix = "[DEBUG] "
+)
 
-// RegisterLogger 用于注册日志记录器。
-func RegisterLogger(
-	loggerType base.LoggerType,
-	creator LoggerCreator,
-	cover bool) error {
-	if loggerType == "" {
-		return fmt.Errorf("logger register error: invalid logger type")
-	}
-	if creator == nil {
-		return fmt.Errorf("logger register error: invalid logger creator (logger type: %s)", loggerType)
-	}
-	rwm.Lock()
-	defer rwm.Unlock()
-	if _, ok := loggerCreatorMap[loggerType]; ok || !cover {
-		return fmt.Errorf("logger register error: already existing logger for type %q", loggerType)
-	}
-	loggerCreatorMap[loggerType] = creator
-	return nil
+const (
+	ByDay int = iota
+	ByWeek
+	ByMonth
+	BySize
+)
+
+type LogFile struct {
+	level    int    // 日志等级
+	saveMode int    // 保存模式
+	saveDays int    // 日志保存天数
+	logTime  int64  //
+	fileName string // 日志文件名
+	filesize int64  // 文件大小, 需要设置 saveMode 为 BySize 生效
+	fileFd   *os.File
 }
 
-// DLogger 会返回一个新的默认日志记录器。
-func DLogger() base.MyLogger {
-	return Logger(
-		base.TYPE_LOGRUS,
-		base.LEVEL_INFO,
-		base.FORMAT_TEXT,
-		os.Stdout,
-		nil)
+var logFile LogFile
+
+func DLogger() *LogFile {
+	var logF = "G:/log/webCrawler.log"
+	lf := &LogFile{
+		level:    DebugLevel,
+		saveMode: ByDay,
+		saveDays: 2,
+		fileName: logF,
+		filesize: 1024 * 1024,
+		logTime:  0,
+	}
+
+	// 日志初始化
+	log.SetOutput(lf)
+	//log.SetFlags(log.Lmicroseconds | log.Lshortfile)
+	log.SetFlags(log.Llongfile | log.Ldate | log.Ltime)
+
+	return lf
 }
 
-// Logger 会新建一个日志记录器。
-func Logger(
-	loggerType base.LoggerType,
-	level base.LogLevel,
-	format base.LogFormat,
-	writer io.Writer,
-	options []base.Option) base.MyLogger {
-	var logger base.MyLogger
-	rwm.RLock()
-	creator, ok := loggerCreatorMap[loggerType]
-	rwm.RUnlock()
-	if ok {
-		logger = creator(level, format, writer, options)
+func (logF *LogFile) Debugf(format string, args ...interface{}) {
+	if logF.level >= DebugLevel {
+		log.SetPrefix(blue(debugPrefix))
+		log.Output(2, fmt.Sprintf(format, args...))
+	}
+}
+
+func (logF *LogFile) Info(args ...interface{}) {
+	if logF.level >= InfoLevel {
+		log.SetPrefix(green(infoPrefix))
+		log.Output(2, fmt.Sprintln(args...))
+	}
+}
+
+func (logF *LogFile) Infof(format string, args ...interface{}) {
+	if logF.level >= InfoLevel {
+		log.SetPrefix(green(infoPrefix))
+		log.Output(2, fmt.Sprintf(format, args...))
+	}
+}
+
+func (logF *LogFile) Warnln(args ...interface{}) {
+	if logF.level >= WarnLevel {
+		log.SetPrefix(magenta(warnPrefix))
+		log.Output(2, fmt.Sprintln(args...))
+	}
+}
+
+func (logF *LogFile) Warnf(format string, args ...interface{}) {
+	if logF.level >= WarnLevel {
+		log.SetPrefix(magenta(warnPrefix))
+		log.Output(2, fmt.Sprintf(format, args...))
+	}
+}
+
+func (logF *LogFile) Error(args ...interface{}) {
+	if logF.level >= ErrorLevel {
+		log.SetPrefix(red(errorPrefix))
+		log.Output(2, fmt.Sprintln(args...))
+	}
+}
+
+func (logF *LogFile) Errorf(format string, args ...interface{}) {
+	if logF.level >= ErrorLevel {
+		log.SetPrefix(red(errorPrefix))
+		log.Output(2, fmt.Sprintf(format, args...))
+	}
+}
+
+func (logF *LogFile) Fatal(args ...interface{}) {
+	if logF.level >= FatalLevel {
+		log.SetPrefix(red(fatalPrefix))
+		log.Output(2, fmt.Sprintln(args...))
+	}
+}
+
+func (logF *LogFile) Fatalf(format string, args ...interface{}) {
+	if logF.level >= FatalLevel {
+		log.SetPrefix(red(fatalPrefix))
+		log.Output(2, fmt.Sprintf(format, args...))
+	}
+}
+
+func GetRedPrefix(s string) string {
+	return fmt.Sprintf("\x1b[%dm%s\x1b[0m", color_red, s)
+}
+
+func red(s string) string {
+	return fmt.Sprintf("\x1b[%dm%s\x1b[0m", color_red, s)
+}
+
+func green(s string) string {
+	return fmt.Sprintf("\x1b[%dm%s\x1b[0m", color_green, s)
+}
+
+func yellow(s string) string {
+	return fmt.Sprintf("\x1b[%dm%s\x1b[0m", color_yellow, s)
+}
+
+func blue(s string) string {
+	return fmt.Sprintf("\x1b[%dm%s\x1b[0m", color_blue, s)
+}
+
+func magenta(s string) string {
+	return fmt.Sprintf("\x1b[%dm%s\x1b[0m", color_magenta, s)
+}
+
+func (me LogFile) Write(buf []byte) (n int, err error) {
+	fmt.Print(string(buf))
+	if me.fileName == "" {
+		return len(buf), nil
+	}
+
+	switch me.saveMode {
+	case BySize:
+		fileInfo, err := os.Stat(me.fileName)
+		if err != nil {
+			me.createLogFile()
+			me.logTime = time.Now().Unix()
+		} else {
+			filesize := fileInfo.Size()
+			if me.fileFd == nil ||
+				filesize > me.filesize {
+				me.createLogFile()
+				me.logTime = time.Now().Unix()
+			}
+		}
+	default: // 默认按天  ByDay
+		if me.logTime+3600 < time.Now().Unix() {
+			me.createLogFile()
+			me.logTime = time.Now().Unix()
+		}
+	}
+
+	if me.fileFd == nil {
+		fmt.Printf("日志文件为空 !\n")
+		return len(buf), nil
+	}
+
+	return me.fileFd.Write(buf)
+}
+
+func (me *LogFile) createLogFile() {
+	if me.logTime != 0 {
+		now := time.Now()
+		filename := fmt.Sprintf("%s_%04d%02d%02d_%02d%02d",
+			me.fileName, now.Year(), now.Month(), now.Day(), now.Hour(), now.Minute())
+		err := os.Rename(me.fileName, filename)
+		if err != nil {
+			fmt.Println("存档日志文件失败 : ", err.Error())
+		}
+	}
+
+	if fd, err := os.OpenFile(me.fileName, os.O_CREATE|os.O_APPEND, 0755); nil == err {
+		me.fileFd = fd
 	} else {
-		logger = logrus.NewLoggerBy(level, format, writer, options)
+		fmt.Println("打开日志文件失败: ", err.Error())
 	}
-	return logger
 }

@@ -25,11 +25,11 @@ type summary struct {
 }
 
 // 代表已达到最大空闲计数的消息模板
-var msgReachMaxIdleCount = "The scheduler has been idle for a period of time" +
-	" (about %s)." + " Consider to stop it now."
+var msgReachMaxIdleCount = "调度器已经闲置了一段时间" +
+	" (约 %s)." + " 现在考虑停止"
 
 // 代表停止调度器的消息模板
-var msgStopScheduler = "Stop scheduler...%s."
+var msgStopScheduler = "停止调度器...%s."
 
 // 代表日志记录函数的类型
 // 参数level代表日志级别。级别设定：0-普通 1-警告 2-错误
@@ -52,7 +52,7 @@ func Monitor(
 	record Record) <-chan uint64 {
 	// 防止调度器不可用
 	if scheduler == nil {
-		panic(errors.New("the scheduler is invalid"))
+		panic(errors.New("调度器无效"))
 	}
 	// 防止过小的检查间隔时间对爬取流程造成不良影响
 	if checkInterval < time.Millisecond*100 {
@@ -66,14 +66,14 @@ func Monitor(
 	if maxIdleCount < 10 {
 		maxIdleCount = 10
 	}
-	logger.Infof("Monitor parameters: checkInterval: %s, summarizeInterval: %s,"+
-		" maxIdleCount: %d, autoStop: %v", checkInterval, summarizeInterval, maxIdleCount, autoStop)
+	logger.Infof("监控参数: 检查间隔时间: %s, 摘要获取间隔时间: %s,"+
+		" 最大空闲计数: %d, 空闲自动停止: %v", checkInterval, summarizeInterval, maxIdleCount, autoStop)
 	// 生成监控停止通知器
 	stopNotifier, stopFunc := context.WithCancel(context.Background())
 	// 接收和报告信息
 	reportError(scheduler, record, stopNotifier)
 	// 记录摘要信息
-	recordSummary(scheduler, summarizeInterval, record, stopNotifier)
+	//recordSummary(scheduler, summarizeInterval, record, stopNotifier)
 	// 检查计数通道
 	checkCountChan := make(chan uint64, 2)
 	// 检查空闲状态
@@ -116,9 +116,9 @@ func checkStatus(
 						if autoStop {
 							var result string
 							if err := scheduler.Stop(); err == nil {
-								result = "success"
+								result = "成功"
 							} else {
-								result = fmt.Sprintf("failing(%s)", err)
+								result = fmt.Sprintf("失败(%s)", err)
 							}
 							msg = fmt.Sprintf(msgStopScheduler, result)
 							record(0, msg)
@@ -175,10 +175,10 @@ func recordSummary(
 				}
 				b, err := json.MarshalIndent(summary, "", "    ")
 				if err != nil {
-					logger.Errorf("An error occurs when generating scheduler summary: %s\n", err)
+					logger.Errorf("生成调度器摘要时发生错误: %s\n", err)
 					continue
 				}
-				msg := fmt.Sprintf("Monitor summary[%d]:\n%s", recordCount, b)
+				msg := fmt.Sprintf("监控摘要 [%d]:\n%s", recordCount, string(b))
 				record(0, msg)
 				prevNumGoroutine = currNumGoroutine
 				prevSchedSummaryStruct = currSchedSummaryStruct
@@ -207,7 +207,7 @@ func reportError(
 			}
 			err, ok := <-errorChan
 			if ok {
-				errMsg := fmt.Sprintf("Received an error from error channel: %s", err)
+				errMsg := fmt.Sprintf("收到来自错误管道的消息: %s", err)
 				record(2, errMsg)
 			}
 			time.Sleep(time.Microsecond)

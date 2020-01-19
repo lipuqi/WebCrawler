@@ -27,15 +27,15 @@ func New(mid module.MID, itemProcessors []module.ProcessItem,
 		return nil, err
 	}
 	if itemProcessors == nil {
-		return nil, genParameterError("nil item processor list")
+		return nil, genParameterError("空的条目处理列表")
 	}
 	if len(itemProcessors) == 0 {
-		return nil, genParameterError("empty item processor list")
+		return nil, genParameterError("条目处理列表长度为空")
 	}
 	var innerProcessors []module.ProcessItem
 	for i, pipeline := range itemProcessors {
 		if pipeline == nil {
-			err := genParameterError(fmt.Sprintf("nil item processor[%d]", i))
+			err := genParameterError(fmt.Sprintf("空的条目处理管道[%d]", i))
 			return nil, err
 		}
 		innerProcessors = append(innerProcessors, pipeline)
@@ -58,12 +58,12 @@ func (pipeline *myPipeline) Send(item module.Item) []error {
 	pipeline.ModuleInternal.IncrCalledCount()
 	var errs []error
 	if item == nil {
-		err := genParameterError("nil item")
+		err := genParameterError("空条目")
 		errs = append(errs, err)
 		return errs
 	}
 	pipeline.ModuleInternal.IncrAcceptedCount()
-	logger.Infof("Process item %+v... \n", item)
+	logger.Infof("处理项目 %+v... \n", item)
 	var currentItem = item
 	for _, processor := range pipeline.itemProcessors {
 		processedItem, err := processor(currentItem)

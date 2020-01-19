@@ -17,21 +17,21 @@ func genResponseParsers() []module.ParseResponse {
 		dataList := make([]module.Data, 0)
 		// 检查响应
 		if httpResp == nil {
-			return nil, []error{fmt.Errorf("nil HTTP response")}
+			return nil, []error{fmt.Errorf("空的HTTP响应")}
 		}
 		httpReq := httpResp.Request
 		if httpReq == nil {
-			return nil, []error{fmt.Errorf("nil HTTP request")}
+			return nil, []error{fmt.Errorf("空的HTTP请求")}
 		}
 		reqURL := httpReq.URL
 		if httpResp.StatusCode != 200 {
-			err := fmt.Errorf("unsupported status code %d (requestURL: %s)",
+			err := fmt.Errorf("请求返回状态不是200 %d (requestURL: %s)",
 				httpResp.StatusCode, reqURL)
 			return nil, []error{err}
 		}
 		body := httpResp.Body
 		if body == nil {
-			err := fmt.Errorf("nil HTTP response body (requestURL: %s)",
+			err := fmt.Errorf("空的HTTP响应体 (requestURL: %s)",
 				reqURL)
 			return nil, []error{err}
 		}
@@ -69,7 +69,7 @@ func genResponseParsers() []module.ParseResponse {
 			}
 			aURL, err := url.Parse(href)
 			if err != nil {
-				logger.Warnf("An error occurs when parsing attribute %q in tag %q : %s (href: %s)",
+				logger.Warnf("解析HTML标签属性出现异常 %q 在属性 %q : %s (href: %s)",
 					err, "href", "a", href)
 				return
 			}
@@ -113,21 +113,21 @@ func genResponseParsers() []module.ParseResponse {
 	parseImg := func(httpResp *http.Response, respDepth uint32) ([]module.Data, []error) {
 		// 检查响应
 		if httpResp == nil {
-			return nil, []error{fmt.Errorf("nil HTTP response")}
+			return nil, []error{fmt.Errorf("空的HTTP响应")}
 		}
 		httpReq := httpResp.Request
 		if httpReq == nil {
-			return nil, []error{fmt.Errorf("nil HTTP request")}
+			return nil, []error{fmt.Errorf("空的HTTP请求")}
 		}
 		reqURL := httpReq.URL
 		if httpResp.StatusCode != 200 {
-			err := fmt.Errorf("unsupported status code %d (requestURL: %s)",
+			err := fmt.Errorf("请求返回状态不是200 %d (requestURL: %s)",
 				httpResp.StatusCode, reqURL)
 			return nil, []error{err}
 		}
 		httpRespBody := httpResp.Body
 		if httpRespBody == nil {
-			err := fmt.Errorf("nil HTTP response body (requestURL: %s)",
+			err := fmt.Errorf("空的HTTP响应体 (requestURL: %s)",
 				reqURL)
 			return nil, []error{err}
 		}

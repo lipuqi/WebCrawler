@@ -43,7 +43,7 @@ type myBuffer struct {
 // 参数size代表缓冲器的容量
 func NewBuffer(size uint32) (Buffer, error) {
 	if size == 0 {
-		errMsg := fmt.Sprintf("illegal size for buffer:%d", size)
+		errMsg := fmt.Sprintf("缓冲器长度不正确:%d", size)
 		return nil, errors.NewIllegalParameterError(errMsg)
 	}
 	return &myBuffer{

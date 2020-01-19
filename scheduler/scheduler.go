@@ -79,7 +79,7 @@ func NewScheduler() Scheduler {
 
 func (sched *myScheduler) Init(requestArgs RequestArgs, dataArgs DataArgs, moduleArgs ModuleArgs) (err error) {
 	// 检查状态
-	logger.Info("Check status for initialization...")
+	logger.Info("检查状态以进行初始化...")
 	var oldStatus Status
 	oldStatus, err = sched.checkAndSetStatus(SCHED_STATUS_INITIALIZING)
 	if err != nil {
@@ -96,47 +96,49 @@ func (sched *myScheduler) Init(requestArgs RequestArgs, dataArgs DataArgs, modul
 	}()
 
 	// 检查参数
-	logger.Info("Check request arguments...")
+	logger.Info("检查请求参数...")
 	if err = requestArgs.Check(); err != nil {
 		return err
 	}
-	logger.Info("Check data arguments...")
+	logger.Info("请求参数检查完毕")
+	logger.Info("检查基础数据参数...")
 	if err = dataArgs.Check(); err != nil {
 		return err
 	}
-	logger.Info("Data arguments are valid.")
-	logger.Info("Check module arguments...")
+	logger.Info("基础数据参数检查完毕")
+	logger.Info("检查组件参数...")
 	if err = moduleArgs.Check(); err != nil {
 		return err
 	}
-	logger.Info("Module arguments are valid.")
+	logger.Info("组件参数检查完毕")
 
 	// 初始化内部字段
-	logger.Info("Initialize scheduler's fields...")
+	logger.Info("初始化调度器的字段...")
 	if sched.registrar == nil {
 		sched.registrar = module.NewRegistrar()
 	} else {
 		sched.registrar.Clear()
 	}
 	sched.maxDepth = requestArgs.MaxDepth
-	logger.Infof("-- Max depth: %d", sched.maxDepth)
+	logger.Infof("-- 最大爬取深度: %d", sched.maxDepth)
 	sched.acceptedDomainMap, _ = cmap.NewConcurrentMap(1, nil)
 	for _, domain := range requestArgs.AcceptedDomains {
-		sched.acceptedDomainMap.Put(domain, struct{}{})
+		pd, _ := getPrimaryDomain(domain)
+		sched.acceptedDomainMap.Put(pd, struct{}{})
 	}
-	logger.Infof("-- Accepted primary domains: %v", requestArgs.AcceptedDomains)
+	logger.Infof("-- 主要请求地址: %v", requestArgs.AcceptedDomains)
 	sched.urlMap, _ = cmap.NewConcurrentMap(16, nil)
-	logger.Infof("-- URL map: length: %d, concurrency: %d", sched.urlMap.Len(), sched.urlMap.Concurrency())
+	logger.Infof("-- URL字典: 长度: %d, 并发量: %d", sched.urlMap.Len(), sched.urlMap.Concurrency())
 	sched.initBufferPool(dataArgs)
 	sched.resetContext()
 	sched.summary = newSchedSummary(requestArgs, dataArgs, moduleArgs, sched)
 
 	// 注册组件
-	logger.Info("Register modules...")
+	logger.Info("注册模块...")
 	if err = sched.registerModules(moduleArgs); err != nil {
 		return err
 	}
-	logger.Info("Scheduler has been initialized.")
+	logger.Info("调度器已经注册完成")
 	return nil
 }
 
@@ -148,10 +150,10 @@ func (sched *myScheduler) Start(firstHTTPReq *http.Request) (err error) {
 			err = genError(errMsg)
 		}
 	}()
-	logger.Info("Start scheduler...")
+	logger.Info("启动调度器...")
 
 	//检查状态
-	logger.Info("Check status for start...")
+	logger.Info("检查调度器启动状态...")
 	var oldStatus Status
 	oldStatus, err = sched.checkAndSetStatus(SCHED_STATUS_STARTING)
 	defer func() {
@@ -168,22 +170,22 @@ func (sched *myScheduler) Start(firstHTTPReq *http.Request) (err error) {
 	}
 
 	// 检查参数
-	logger.Info("Check first HTTP request...")
+	logger.Info("检查首次请求HTTP参数...")
 	if firstHTTPReq == nil {
-		err = genParameterError("nil first HTTP request")
+		err = genParameterError("空的首次HTTP主域名请求")
 		return
 	}
-	logger.Info("The first HTTP request is valid.")
+	logger.Info("HTTP主域名请求检查完毕")
 
 	// 获得首次请求的主域名， 并将其添加到可接受的主域名的字典
-	logger.Info("Get the primary domain...")
-	logger.Info("-- Host: %s", firstHTTPReq.Host)
+	logger.Info("获得首次请求的主域名...")
+	logger.Infof("-- host: %s", firstHTTPReq.Host)
 	var primaryDomain string
 	primaryDomain, err = getPrimaryDomain(firstHTTPReq.Host)
 	if err != nil {
 		return
 	}
-	logger.Infof("-- Primary domain: %s", primaryDomain)
+	logger.Infof("-- 主域名: %s", primaryDomain)
 	sched.acceptedDomainMap.Put(primaryDomain, struct{}{})
 
 	// 开始调度数据和组件
@@ -193,7 +195,7 @@ func (sched *myScheduler) Start(firstHTTPReq *http.Request) (err error) {
 	sched.download()
 	sched.analyze()
 	sched.pick()
-	logger.Info("Scheduler has been started.")
+	logger.Info("调度器已经启动.")
 
 	// 放入第一请求
 	firstReq := module.NewRequest(firstHTTPReq, 0)
@@ -202,9 +204,9 @@ func (sched *myScheduler) Start(firstHTTPReq *http.Request) (err error) {
 }
 
 func (sched *myScheduler) Stop() (err error) {
-	logger.Info("Stop scheduler...")
+	logger.Info("停止调度器...")
 	// 检查状态
-	logger.Info("Check status for stop...")
+	logger.Info("检查停止调度器参数...")
 	var oldStatus Status
 	oldStatus, err = sched.checkAndSetStatus(SCHED_STATUS_STOPPING)
 	defer func() {
@@ -224,7 +226,7 @@ func (sched *myScheduler) Stop() (err error) {
 	sched.respBufferPool.Close()
 	sched.itemBufferPool.Close()
 	sched.errorBufferPool.Close()
-	logger.Info("Scheduler has been stopped.")
+	logger.Info("调度器已停止")
 	return nil
 }
 
@@ -247,13 +249,13 @@ func (sched *myScheduler) ErrorChan() <-chan error {
 			}
 			datum, err := errBuffer.Get()
 			if err != nil {
-				logger.Warnln("The error buffer pool was closed. Break error reception.")
+				logger.Warnln("错误缓冲池已关闭。 中断错误接收")
 				close(errCh)
 				break
 			}
 			err, ok := datum.(error)
 			if !ok {
-				errMsg := fmt.Sprintf("incorrect error type: %T", datum)
+				errMsg := fmt.Sprintf("错误类型不正确: %T", datum)
 				sendError(errors.New(errMsg), "", sched.errorBufferPool)
 				continue
 			}
@@ -309,11 +311,11 @@ func (sched *myScheduler) registerModules(moduleArgs ModuleArgs) error {
 			return genErrorByError(err)
 		}
 		if !ok {
-			errMsg := fmt.Sprintf("Couldn't register downloader instance with MID %q!", d.ID())
+			errMsg := fmt.Sprintf("无法使用MID注册下载器实例 %q!", d.ID())
 			return genError(errMsg)
 		}
 	}
-	logger.Infof("All downloads have been registered. (number: %d)", len(moduleArgs.Downloaders))
+	logger.Infof("所有下载器均已注册 (数量: %d)", len(moduleArgs.Downloaders))
 
 	for _, a := range moduleArgs.Analyzers {
 		if a == nil {
@@ -324,11 +326,11 @@ func (sched *myScheduler) registerModules(moduleArgs ModuleArgs) error {
 			return genErrorByError(err)
 		}
 		if !ok {
-			errMsg := fmt.Sprintf("Couldn't register analyzer instance with MID %q!", a.ID())
+			errMsg := fmt.Sprintf("无法使用MID注册分析器实例 %q!", a.ID())
 			return genError(errMsg)
 		}
 	}
-	logger.Infof("All analyzers have been registered. (number: %d)", len(moduleArgs.Analyzers))
+	logger.Infof("所有分析器均已注册 (数量: %d)", len(moduleArgs.Analyzers))
 
 	for _, p := range moduleArgs.Pipelines {
 		if p == nil {
@@ -339,11 +341,11 @@ func (sched *myScheduler) registerModules(moduleArgs ModuleArgs) error {
 			return genErrorByError(err)
 		}
 		if !ok {
-			errMsg := fmt.Sprintf("Couldn't register pipeline instance with MID %q!", p.ID())
+			errMsg := fmt.Sprintf("无法使用MID注册条目处理管道实例 %q!", p.ID())
 			return genError(errMsg)
 		}
 	}
-	logger.Infof("All pipelines have been registered. (number: %d)", len(moduleArgs.Pipelines))
+	logger.Infof("所有条目处理管道均已注册 (数量: %d)", len(moduleArgs.Pipelines))
 	return nil
 }
 
@@ -355,14 +357,14 @@ func (sched *myScheduler) download() {
 			if sched.canceled() {
 				break
 			}
-			datum, err := sched.respBufferPool.Get()
+			datum, err := sched.reqBufferPool.Get()
 			if err != nil {
-				logger.Warnln("The request buffer pool was closed. Break request reception.")
+				logger.Warnln("请求缓冲池已关闭。 中断请求接收")
 				break
 			}
 			req, ok := datum.(*module.Request)
 			if !ok {
-				errMsg := fmt.Sprintf("incorrect request type: %T", datum)
+				errMsg := fmt.Sprintf("错误的请求类型: %T", datum)
 				sendError(errors.New(errMsg), "", sched.errorBufferPool)
 			}
 			sched.downloadOne(req)
@@ -380,14 +382,14 @@ func (sched *myScheduler) downloadOne(req *module.Request) {
 	}
 	m, err := sched.registrar.Get(module.TYPE_DOWNLOADER)
 	if err != nil || m == nil {
-		errMsg := fmt.Sprintf("couldn't get a downloader: %s", err)
+		errMsg := fmt.Sprintf("不能获取下载器: %s", err)
 		sendError(errors.New(errMsg), "", sched.errorBufferPool)
 		sched.sendReq(req)
 		return
 	}
 	downloader, ok := m.(module.Downloader)
 	if !ok {
-		errMsg := fmt.Sprintf("incorrect downloader type: %T (MID: %s)",
+		errMsg := fmt.Sprintf("错误的下载器类型: %T (MID: %s)",
 			m, m.ID())
 		sendError(errors.New(errMsg), m.ID(), sched.errorBufferPool)
 		sched.sendReq(req)
@@ -412,12 +414,12 @@ func (sched *myScheduler) analyze() {
 			}
 			datum, err := sched.respBufferPool.Get()
 			if err != nil {
-				logger.Warnln("The response buffer pool was closed. Break response reception.")
+				logger.Warnln("响应缓冲池已关闭。 中断响应接收")
 				break
 			}
 			resp, ok := datum.(*module.Response)
 			if !ok {
-				errMsg := fmt.Sprintf("incorrect response type: %T", datum)
+				errMsg := fmt.Sprintf("错误的响应类型: %T", datum)
 				sendError(errors.New(errMsg), "", sched.errorBufferPool)
 			}
 			sched.analyzeOne(resp)
@@ -435,14 +437,14 @@ func (sched *myScheduler) analyzeOne(resp *module.Response) {
 	}
 	m, err := sched.registrar.Get(module.TYPE_ANALYZER)
 	if err != nil || m == nil {
-		errMsg := fmt.Sprintf("couldn't get an analyzer: %s", err)
+		errMsg := fmt.Sprintf("不能获取分析器: %s", err)
 		sendError(errors.New(errMsg), "", sched.errorBufferPool)
 		sendResp(resp, sched.respBufferPool)
 		return
 	}
 	analyzer, ok := m.(module.Analyzer)
 	if !ok {
-		errMsg := fmt.Sprintf("incorrect analyzer type: %T (MID: %s)",
+		errMsg := fmt.Sprintf("分析器类型不正确: %T (MID: %s)",
 			m, m.ID())
 		sendError(errors.New(errMsg), m.ID(), sched.errorBufferPool)
 		sendResp(resp, sched.respBufferPool)
@@ -460,7 +462,7 @@ func (sched *myScheduler) analyzeOne(resp *module.Response) {
 			case module.Item:
 				sendItem(d, sched.itemBufferPool)
 			default:
-				errMsg := fmt.Sprintf("Unsupported data type %T! (data: %#v)", d, d)
+				errMsg := fmt.Sprintf("不支持的数据类型 %T! (data: %#v)", d, d)
 				sendError(errors.New(errMsg), m.ID(), sched.errorBufferPool)
 			}
 		}
@@ -481,12 +483,12 @@ func (sched *myScheduler) pick() {
 			}
 			datum, err := sched.itemBufferPool.Get()
 			if err != nil {
-				logger.Warnln("The item buffer pool was closed. Break item reception.")
+				logger.Warnln("条目缓冲池已关闭。 终止条目接收")
 				break
 			}
 			item, ok := datum.(module.Item)
 			if !ok {
-				errMsg := fmt.Sprintf("incorrect item type: %T", datum)
+				errMsg := fmt.Sprintf("条目类型非法: %T", datum)
 				sendError(errors.New(errMsg), "", sched.errorBufferPool)
 			}
 			sched.pickOne(item)
@@ -501,14 +503,14 @@ func (sched *myScheduler) pickOne(item module.Item) {
 	}
 	m, err := sched.registrar.Get(module.TYPE_PIPELINE)
 	if err != nil || m == nil {
-		errMsg := fmt.Sprintf("couldn't get a pipeline: %s", err)
+		errMsg := fmt.Sprintf("不能获取条目处理管道: %s", err)
 		sendError(errors.New(errMsg), "", sched.errorBufferPool)
 		sendItem(item, sched.itemBufferPool)
 		return
 	}
 	pipeline, ok := m.(module.Pipeline)
 	if !ok {
-		errMsg := fmt.Sprintf("incorrect pipeline type: %T (MID: %s)",
+		errMsg := fmt.Sprintf("条目处理管道类型非法: %T (MID: %s)",
 			m, m.ID())
 		sendError(errors.New(errMsg), m.ID(), sched.errorBufferPool)
 		sendItem(item, sched.itemBufferPool)
@@ -533,22 +535,22 @@ func (sched *myScheduler) sendReq(req *module.Request) bool {
 	}
 	httpReq := req.HTTPReq()
 	if httpReq == nil {
-		logger.Warnln("Ignore the request! It's HTTP request is invalid!")
+		logger.Warnln("忽略请求！ HTTP请求无效！")
 		return false
 	}
 	reqURL := httpReq.URL
 	if reqURL == nil {
-		logger.Warnln("Ignore the request! It's URL is invalid")
+		logger.Warnln("忽略请求！ URL无效！")
 		return false
 	}
 	scheme := strings.ToLower(reqURL.Scheme)
 	if scheme != "http" && scheme != "https" {
-		logger.Warnf("Ignore the request! It's URL scheme is %q, but should be %q or %q. (URL: %s)\n",
+		logger.Warnf("忽略请求！ 这个URL请求协议为 %q, 不是 %q or %q. (URL: %s)\n",
 			scheme, "http", "https", reqURL)
 		return false
 	}
 	if v := sched.urlMap.Get(reqURL.String()); v != nil {
-		logger.Warnf("Ignore the request! It's URL is repeated. (URL: %s)\n", reqURL)
+		logger.Warnf("忽略请求！ URL是重复的 (URL: %s)\n", reqURL)
 		return false
 	}
 	pd, _ := getPrimaryDomain(httpReq.Host)
@@ -556,18 +558,18 @@ func (sched *myScheduler) sendReq(req *module.Request) bool {
 		if pd == "bing.net" {
 			panic(httpReq.URL)
 		}
-		logger.Warnf("Ignore the request! It's host %q is not in accepted primary domain map. (URL: %s)\n",
+		logger.Warnf("忽略请求！ 这个 host %q 不在接收的字典里 (URL: %s)\n",
 			httpReq.Host, reqURL)
 		return false
 	}
 	if req.Depth() > sched.maxDepth {
-		logger.Warnf("Ignore the request! It's depth %d is greater than %d. (URL: %s)\n",
+		logger.Warnf("忽略请求！ 这个爬取深度 %d 已经大于预设值 %d. (URL: %s)\n",
 			req.Depth(), sched.maxDepth, reqURL)
 		return false
 	}
 	go func(req *module.Request) {
 		if err := sched.reqBufferPool.Put(req); err != nil {
-			logger.Warnln("The request buffer pool was closed. Ignore request sending.")
+			logger.Warnln("请求缓冲池已关闭。 忽略请求发送")
 		}
 	}(req)
 	sched.urlMap.Put(reqURL.String(), struct{}{})
@@ -581,7 +583,7 @@ func sendResp(resp *module.Response, respBufferPool buffer.Pool) bool {
 	}
 	go func(resp *module.Response) {
 		if err := respBufferPool.Put(resp); err != nil {
-			logger.Warnln("The response buffer pool was closed. Ignore response sending.")
+			logger.Warnln("响应缓冲池已关闭。 忽略响应发送")
 		}
 	}(resp)
 	return true
@@ -594,7 +596,7 @@ func sendItem(item module.Item, itemBuferPool buffer.Pool) bool {
 	}
 	go func(item module.Item) {
 		if err := itemBuferPool.Put(item); err != nil {
-			logger.Warnln("The item buffer pool was closed. Ignore item sending.")
+			logger.Warnln("条目缓冲池已关闭。 忽略条目发送")
 		}
 	}(item)
 	return true
@@ -608,7 +610,7 @@ func (sched *myScheduler) initBufferPool(dataArgs DataArgs) {
 		sched.reqBufferPool.Close()
 	}
 	sched.reqBufferPool, _ = buffer.NewPool(dataArgs.ReqBufferCap, dataArgs.ReqMaxBufferNumber)
-	logger.Infof("-- Request buffer pool: bufferCap: %d, maxBufferNumber: %d",
+	logger.Infof("-- 请求缓冲池: 容量: %d, 最大容量: %d",
 		sched.reqBufferPool.BufferCap(), sched.reqBufferPool.MaxBufferNumber())
 
 	// 初始化响应缓冲池
@@ -616,7 +618,7 @@ func (sched *myScheduler) initBufferPool(dataArgs DataArgs) {
 		sched.respBufferPool.Close()
 	}
 	sched.respBufferPool, _ = buffer.NewPool(dataArgs.RespBufferCap, dataArgs.RespMaxBufferNumber)
-	logger.Infof("-- Response buffer pool: bufferCap: %d, maxBufferNumber: %d",
+	logger.Infof("-- 响应缓冲池: 容量: %d, 最大容量: %d",
 		sched.respBufferPool.BufferCap(), sched.respBufferPool.MaxBufferNumber())
 
 	// 初始化条目缓冲池
@@ -624,7 +626,7 @@ func (sched *myScheduler) initBufferPool(dataArgs DataArgs) {
 		sched.itemBufferPool.Close()
 	}
 	sched.itemBufferPool, _ = buffer.NewPool(dataArgs.ItemBufferCap, dataArgs.ItemMaxBufferNumber)
-	logger.Infof("-- Item buffer pool: bufferCap: %d, maxBufferNumber: %d",
+	logger.Infof("-- 条目缓冲池: 容量: %d, 最大容量: %d",
 		sched.itemBufferPool.BufferCap(), sched.itemBufferPool.MaxBufferNumber())
 
 	// 初始化错误缓冲池
@@ -632,7 +634,7 @@ func (sched *myScheduler) initBufferPool(dataArgs DataArgs) {
 		sched.errorBufferPool.Close()
 	}
 	sched.errorBufferPool, _ = buffer.NewPool(dataArgs.ErrorBufferCap, dataArgs.ErrorMaxBufferNumber)
-	logger.Infof("-- Error buffer pool: bufferCap: %d, maxBufferNumber: %d",
+	logger.Infof("-- 错误缓冲池: 容量: %d, 最大容量: %d",
 		sched.errorBufferPool.BufferCap(), sched.errorBufferPool.MaxBufferNumber())
 
 }
@@ -643,7 +645,7 @@ func (sched *myScheduler) initBufferPool(dataArgs DataArgs) {
 func (sched *myScheduler) checkBufferPoolForStart() error {
 	// 检查请求缓冲池
 	if sched.reqBufferPool == nil {
-		return genError("nil request buffer pool")
+		return genError("空的请求缓冲池")
 	}
 	if sched.reqBufferPool != nil && sched.reqBufferPool.Closed() {
 		sched.reqBufferPool, _ = buffer.NewPool(sched.reqBufferPool.BufferCap(), sched.reqBufferPool.MaxBufferNumber())
@@ -651,7 +653,7 @@ func (sched *myScheduler) checkBufferPoolForStart() error {
 
 	// 检查响应缓冲池
 	if sched.respBufferPool == nil {
-		return genError("nil response buffer pool")
+		return genError("空的响应缓冲池")
 	}
 	if sched.respBufferPool != nil && sched.respBufferPool.Closed() {
 		sched.respBufferPool, _ = buffer.NewPool(sched.respBufferPool.BufferCap(), sched.respBufferPool.MaxBufferNumber())
@@ -659,7 +661,7 @@ func (sched *myScheduler) checkBufferPoolForStart() error {
 
 	// 检查条目缓冲池
 	if sched.itemBufferPool == nil {
-		return genError("nil item buffer pool")
+		return genError("空的条目缓冲池")
 	}
 	if sched.itemBufferPool != nil && sched.itemBufferPool.Closed() {
 		sched.itemBufferPool, _ = buffer.NewPool(sched.itemBufferPool.BufferCap(), sched.itemBufferPool.MaxBufferNumber())
@@ -667,7 +669,7 @@ func (sched *myScheduler) checkBufferPoolForStart() error {
 
 	// 检查错误缓冲池
 	if sched.errorBufferPool == nil {
-		return genError("nil error buffer pool")
+		return genError("空的错误缓冲池")
 	}
 	if sched.errorBufferPool != nil && sched.errorBufferPool.Closed() {
 		sched.errorBufferPool, _ = buffer.NewPool(sched.errorBufferPool.BufferCap(), sched.errorBufferPool.MaxBufferNumber())

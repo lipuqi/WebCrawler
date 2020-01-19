@@ -57,27 +57,27 @@ func (analyzer *myAnalyzer) Analyze(resp *module.Response) (dataList []module.Da
 	defer analyzer.ModuleInternal.DecrHandlingNumber()
 	analyzer.ModuleInternal.IncrCalledCount()
 	if resp == nil {
-		errorList = append(errorList, genParameterError("nil response"))
+		errorList = append(errorList, genParameterError("空响应"))
 		return
 	}
 	httpResp := resp.HTTPResp()
 	if httpResp == nil {
-		errorList = append(errorList, genParameterError("nil HTTP response"))
+		errorList = append(errorList, genParameterError("空HTTP响应"))
 		return
 	}
 	httpReq := httpResp.Request
 	if httpReq == nil {
-		errorList = append(errorList, genParameterError("nil HTTP request"))
+		errorList = append(errorList, genParameterError("空HTTP请求"))
 		return
 	}
 	var reqURL = httpReq.URL
 	if reqURL == nil {
-		errorList = append(errorList, genParameterError("nil HTTP request URL"))
+		errorList = append(errorList, genParameterError("HTTP请求空URL"))
 		return
 	}
 	analyzer.ModuleInternal.IncrAcceptedCount()
 	respDepth := resp.Depth()
-	logger.Infof("Parse the response (URL: %s, depth: %d)... \n", reqURL, respDepth)
+	logger.Infof("分析器正在解析响应 (URL: %s, 深度: %d)... \n", reqURL, respDepth)
 
 	// 解析HTTP响应
 	if httpResp.Body != nil {

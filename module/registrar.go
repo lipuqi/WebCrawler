@@ -41,7 +41,7 @@ func NewRegistrar() Registrar {
 
 func (registrar *myRegistrar) Register(module Module) (bool, error) {
 	if module == nil {
-		return false, errors.NewIllegalParameterError("nil module instance")
+		return false, errors.NewIllegalParameterError("空组件实例")
 	}
 	mid := module.ID()
 	parts, err := SplitMID(mid)
@@ -50,7 +50,7 @@ func (registrar *myRegistrar) Register(module Module) (bool, error) {
 	}
 	moduleType := legalLetterTypeMap[parts[0]]
 	if !CheckType(moduleType, module) {
-		errMsg := fmt.Sprintf("incorrect module type: %s", moduleType)
+		errMsg := fmt.Sprintf("组件实例类型异常: %s", moduleType)
 		return false, errors.NewIllegalParameterError(errMsg)
 	}
 	registrar.rwLock.Lock()
@@ -108,7 +108,7 @@ func (registrar *myRegistrar) Get(moduleType Type) (Module, error) {
 // 用于获取指定类型的所有组件实例
 func (registrar *myRegistrar) GetAllByType(moduleType Type) (map[MID]Module, error) {
 	if !LegalType(moduleType) {
-		errMsg := fmt.Sprintf("illegal module type: %s", moduleType)
+		errMsg := fmt.Sprintf("组件实例类型异常: %s", moduleType)
 		return nil, errors.NewIllegalParameterError(errMsg)
 	}
 	registrar.rwLock.RLock()

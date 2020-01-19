@@ -56,11 +56,11 @@ type myPool struct {
 // 参数maxBufferNumber代表池内最多包含的缓冲器的数量
 func NewPool(bufferCap uint32, maxBufferNumber uint32) (Pool, error) {
 	if bufferCap == 0 {
-		errMsg := fmt.Sprintf("illegal buffer cap for buffer pool: %d", bufferCap)
+		errMsg := fmt.Sprintf("缓冲池的缓冲上限不正确: %d", bufferCap)
 		return nil, errors.NewIllegalParameterError(errMsg)
 	}
 	if maxBufferNumber == 0 {
-		errMsg := fmt.Sprintf("illegal max buffer number for buffer pool: %d", maxBufferNumber)
+		errMsg := fmt.Sprintf("缓冲池的最大缓冲上限不正确: %d", maxBufferNumber)
 		return nil, errors.NewIllegalParameterError(errMsg)
 	}
 	bufCh := make(chan Buffer, maxBufferNumber)

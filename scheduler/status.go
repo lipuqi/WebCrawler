@@ -41,39 +41,39 @@ func checkStatus(currentStatus Status, wantedStatus Status, lock sync.Locker) (e
 	}
 	switch currentStatus {
 	case SCHED_STATUS_INITIALIZING:
-		err = genError("the scheduler is being initialized!")
+		err = genError("调度器正在初始化!")
 	case SCHED_STATUS_STARTING:
-		err = genError("the scheduler is being started!")
+		err = genError("调度器正在启动中!")
 	case SCHED_STATUS_STOPPING:
-		err = genError("the scheduler is being stopped!")
+		err = genError("调度器正在停止!")
 	}
 	if err != nil {
 		return
 	}
 	if currentStatus == SCHED_STATUS_UNINITIALIZED &&
 		(wantedStatus == SCHED_STATUS_STARTING || wantedStatus == SCHED_STATUS_STOPPING) {
-		err = genError("the scheduler has not yet been initialized!")
+		err = genError("调度器尚未初始化！")
 		return
 	}
 	switch wantedStatus {
 	case SCHED_STATUS_INITIALIZING:
 		switch currentStatus {
 		case SCHED_STATUS_STARTED:
-			err = genError("the scheduler has been started!")
+			err = genError("调度器正在运行中!")
 		}
 	case SCHED_STATUS_STARTING:
 		switch currentStatus {
 		case SCHED_STATUS_UNINITIALIZED:
-			err = genError("the scheduler has not been initialized!")
+			err = genError("调度器没有初始化")
 		case SCHED_STATUS_STARTED:
-			err = genError("the scheduler has been started!")
+			err = genError("调度器正在运行中!")
 		}
 	case SCHED_STATUS_STOPPING:
 		if currentStatus != SCHED_STATUS_STARTED {
-			err = genError("the scheduler has not been started!")
+			err = genError("调度器没有运行!")
 		}
 	default:
-		errMsg := fmt.Sprintf("unsupported wanted status for check! (wantedStatus: %d)", wantedStatus)
+		errMsg := fmt.Sprintf("不支持的调度器状态！ (调度器状态: %d)", wantedStatus)
 		err = genError(errMsg)
 	}
 	return

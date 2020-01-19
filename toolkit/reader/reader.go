@@ -26,7 +26,7 @@ func NewMultipleReader(reader io.Reader) (MultipleReader, error) {
 	if reader != nil {
 		data, err = ioutil.ReadAll(reader)
 		if err != nil {
-			return nil, fmt.Errorf("multipie reader: couldn't create a new one: %s", err)
+			return nil, fmt.Errorf("多重读取器：创建多重读取器出现异常: %s", err)
 		}
 	} else {
 		data = []byte{}
