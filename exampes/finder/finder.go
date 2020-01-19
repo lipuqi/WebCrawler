@@ -3,11 +3,11 @@ package main
 import (
 	"../../log"
 	sched "../../scheduler"
-	lib "./internal"
+	"./bm1365Model"
+	lib "./bm1365Model"
 	"./monitor"
 	"flag"
 	"fmt"
-	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -31,7 +31,7 @@ func init() {
 		"域名白名单"+" "+
 			"请使用逗号分隔的多个域")
 	flag.UintVar(&depth, "depth", 1, "爬行的深度")
-	flag.StringVar(&dirPath, "dir", "./pictures",
+	flag.StringVar(&dirPath, "dir", "G:/bm1365/pictures",
 		"您要保存图像文件的路径")
 }
 
@@ -100,16 +100,19 @@ func main() {
 	checkCountChan := monitor.Monitor(
 		scheduler, checkInterval, summarizeInterval, maxIdleCount, true, lib.Record)
 	// 准备调度器的启动参数
-	firstHTTPReq, err := http.NewRequest("GET", firstURL, nil)
-	if err != nil {
-		logger.Fatal(err)
-		return
-	}
+	/*	firstHTTPReq, err := http.NewRequest("GET", firstURL, nil)
+		if err != nil {
+			logger.Fatal(err)
+			return
+		}*/
 	// 开启调度器
-	err = scheduler.Start(firstHTTPReq)
+	err = scheduler.Start(nil)
 	if err != nil {
 		logger.Fatalf("开启调度器发送异常: %s", err)
 	}
+	//自定义首次发送
+	bm1365Model.InitReqList(1, 3, scheduler)
 	// 等待监控结束
 	<-checkCountChan
+	bm1365Model.SaveExcel("G:/bm1365/bm1365.xlsx")
 }

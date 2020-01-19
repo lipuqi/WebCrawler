@@ -40,6 +40,8 @@ type Scheduler interface {
 	Idle() bool
 	// 用于获取摘要实例
 	Summary() SchedSummary
+
+	SendReq(req *module.Request) bool
 }
 
 // 调度器的实现类型
@@ -171,23 +173,24 @@ func (sched *myScheduler) Start(firstHTTPReq *http.Request) (err error) {
 
 	// 检查参数
 	logger.Info("检查首次请求HTTP参数...")
-	if firstHTTPReq == nil {
-		err = genParameterError("空的首次HTTP主域名请求")
-		return
-	}
-	logger.Info("HTTP主域名请求检查完毕")
+	if firstHTTPReq != nil {
+		logger.Info("HTTP主域名请求检查完毕")
 
-	// 获得首次请求的主域名， 并将其添加到可接受的主域名的字典
-	logger.Info("获得首次请求的主域名...")
-	logger.Infof("-- host: %s", firstHTTPReq.Host)
-	var primaryDomain string
-	primaryDomain, err = getPrimaryDomain(firstHTTPReq.Host)
-	if err != nil {
-		return
-	}
-	logger.Infof("-- 主域名: %s", primaryDomain)
-	sched.acceptedDomainMap.Put(primaryDomain, struct{}{})
+		// 获得首次请求的主域名， 并将其添加到可接受的主域名的字典
+		logger.Info("获得首次请求的主域名...")
+		logger.Infof("-- host: %s", firstHTTPReq.Host)
+		var primaryDomain string
+		primaryDomain, err = getPrimaryDomain(firstHTTPReq.Host)
+		if err != nil {
+			return
+		}
+		logger.Infof("-- 主域名: %s", primaryDomain)
+		sched.acceptedDomainMap.Put(primaryDomain, struct{}{})
 
+		// 放入第一请求
+		firstReq := module.NewRequest(firstHTTPReq, 0)
+		sched.SendReq(firstReq)
+	}
 	// 开始调度数据和组件
 	if err = sched.checkBufferPoolForStart(); err != nil {
 		return
@@ -196,10 +199,6 @@ func (sched *myScheduler) Start(firstHTTPReq *http.Request) (err error) {
 	sched.analyze()
 	sched.pick()
 	logger.Info("调度器已经启动.")
-
-	// 放入第一请求
-	firstReq := module.NewRequest(firstHTTPReq, 0)
-	sched.sendReq(firstReq)
 	return nil
 }
 
@@ -384,7 +383,7 @@ func (sched *myScheduler) downloadOne(req *module.Request) {
 	if err != nil || m == nil {
 		errMsg := fmt.Sprintf("不能获取下载器: %s", err)
 		sendError(errors.New(errMsg), "", sched.errorBufferPool)
-		sched.sendReq(req)
+		sched.SendReq(req)
 		return
 	}
 	downloader, ok := m.(module.Downloader)
@@ -392,7 +391,7 @@ func (sched *myScheduler) downloadOne(req *module.Request) {
 		errMsg := fmt.Sprintf("错误的下载器类型: %T (MID: %s)",
 			m, m.ID())
 		sendError(errors.New(errMsg), m.ID(), sched.errorBufferPool)
-		sched.sendReq(req)
+		sched.SendReq(req)
 		return
 	}
 	resp, err := downloader.Download(req)
@@ -458,7 +457,7 @@ func (sched *myScheduler) analyzeOne(resp *module.Response) {
 			}
 			switch d := data.(type) {
 			case *module.Request:
-				sched.sendReq(d)
+				sched.SendReq(d)
 			case module.Item:
 				sendItem(d, sched.itemBufferPool)
 			default:
@@ -526,7 +525,7 @@ func (sched *myScheduler) pickOne(item module.Item) {
 
 // 向请求缓冲池发送请求
 // 不符合要求的请求会被过滤掉
-func (sched *myScheduler) sendReq(req *module.Request) bool {
+func (sched *myScheduler) SendReq(req *module.Request) bool {
 	if req == nil {
 		return false
 	}
