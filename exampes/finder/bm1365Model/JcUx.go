@@ -92,9 +92,9 @@ func ExcelInit() {
 	f.SetActiveSheet(index)
 	axis := getRid(1)
 	f.SetCellValue(sheet, axis[0], "标题")
-	f.SetCellValue(sheet, axis[1], "大类别")
-	f.SetCellValue(sheet, axis[2], "子类别")
-	f.SetCellValue(sheet, axis[3], "子子类别")
+	f.SetCellValue(sheet, axis[1], "一级类别")
+	f.SetCellValue(sheet, axis[2], "二级类别")
+	f.SetCellValue(sheet, axis[3], "三级类别")
 	f.SetCellValue(sheet, axis[4], "适用范围")
 	f.SetCellValue(sheet, axis[5], "价格")
 	f.SetCellValue(sheet, axis[6], "产地")
@@ -106,7 +106,7 @@ func ExcelInit() {
 	f.SetCellValue(sheet, axis[12], "内容")
 	f.SetCellValue(sheet, axis[13], "图片")
 
-	logger.Info("初始化表格成功！")
+	logger.Info("初始化数据表格成功！")
 	excelFile = &ExcelFile{
 		ef:    f,
 		row:   2,
@@ -115,11 +115,12 @@ func ExcelInit() {
 }
 
 func SaveExcel(savePath string) {
+	logger.Info("数据存档中...")
 	if excelFile != nil {
-		if err := excelFile.ef.SaveAs(savePath); err != nil {
-			logger.Errorf("保存表格文件失败：%s", err)
+		if err := excelFile.ef.SaveAs(savePath + "/resultInfo.xlsx"); err != nil {
+			logger.Errorf("数据存档失败：%s", err)
 		}
-		logger.Info("保存表格文件成功！")
+		logger.Info("数据存档成功！")
 	}
 }
 

@@ -15,10 +15,12 @@ import (
 
 // 命令参数
 var (
-	firstURL string
-	domains  string
-	depth    uint
-	dirPath  string
+	firstURL  string
+	domains   string
+	depth     uint
+	dirPath   string
+	startPage int
+	pageNum   int
 )
 
 // 日志记录器
@@ -31,8 +33,10 @@ func init() {
 		"域名白名单"+" "+
 			"请使用逗号分隔的多个域")
 	flag.UintVar(&depth, "depth", 1, "爬行的深度")
-	flag.StringVar(&dirPath, "dir", "G:/bm1365/pictures",
-		"您要保存图像文件的路径")
+	flag.StringVar(&dirPath, "dir", "./resultData",
+		"保存文件的路径")
+	flag.IntVar(&startPage, "startPage", 1, "起始页")
+	flag.IntVar(&pageNum, "pageNum", 1, "爬行的页数")
 }
 
 func Usage() {
@@ -45,6 +49,7 @@ func Usage() {
 func main() {
 	flag.Usage = Usage
 	flag.Parse()
+
 	// 创建调度器
 	scheduler := sched.NewScheduler()
 	// 准备调度器的初始化参数
@@ -93,9 +98,9 @@ func main() {
 		logger.Fatalf("初始化调度器发生异常: %s", err)
 	}
 	// 准备监控参数
-	checkInterval := 2 * time.Second
+	checkInterval := time.Second
 	summarizeInterval := time.Second
-	maxIdleCount := uint(15)
+	maxIdleCount := uint(10)
 	// 开始监控
 	checkCountChan := monitor.Monitor(
 		scheduler, checkInterval, summarizeInterval, maxIdleCount, true, lib.Record)
@@ -111,8 +116,9 @@ func main() {
 		logger.Fatalf("开启调度器发送异常: %s", err)
 	}
 	//自定义首次发送
-	bm1365Model.InitReqList(1, 3, scheduler)
+	bm1365Model.InitReqList(startPage, pageNum, scheduler)
 	// 等待监控结束
 	<-checkCountChan
-	bm1365Model.SaveExcel("G:/bm1365/bm1365.xlsx")
+	bm1365Model.SaveExcel(dirPath)
+	logger.Info("程序结束")
 }

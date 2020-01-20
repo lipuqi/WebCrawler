@@ -19,7 +19,7 @@ func genItemProcessors(dirPath string) []module.ProcessItem {
 		}
 		// 检查和准备数据
 		var absDirPath string
-		if absDirPath, err = checkDirPath(dirPath); err != nil {
+		if absDirPath, err = checkDirPath(dirPath + "/pictures"); err != nil {
 			return
 		}
 		if v := itme["reader"]; v != nil {

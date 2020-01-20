@@ -63,7 +63,7 @@ func (pipeline *myPipeline) Send(item module.Item) []error {
 		return errs
 	}
 	pipeline.ModuleInternal.IncrAcceptedCount()
-	logger.Infof("处理项目 %+v... \n", item)
+	//logger.Infof("处理项目 %+v... \n", item)
 	var currentItem = item
 	for _, processor := range pipeline.itemProcessors {
 		processedItem, err := processor(currentItem)

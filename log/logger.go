@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"time"
 )
 
@@ -49,24 +50,28 @@ type LogFile struct {
 	fileFd   *os.File
 }
 
+var lf *LogFile = nil
+
 var logFile LogFile
 
 func DLogger() *LogFile {
-	var logF = "G:/log/webCrawler.log"
-	lf := &LogFile{
-		level:    DebugLevel,
-		saveMode: ByDay,
-		saveDays: 2,
-		fileName: logF,
-		filesize: 1024 * 1024,
-		logTime:  0,
+	if lf == nil {
+		var logF = "./logFile/webCrawler.log"
+
+		lf = &LogFile{
+			level:    DebugLevel,
+			saveMode: ByDay,
+			saveDays: 2,
+			fileName: logF,
+			filesize: 1024 * 1024,
+			logTime:  0,
+		}
+
+		// 日志初始化
+		log.SetOutput(lf)
+		//log.SetFlags(log.Lmicroseconds | log.Lshortfile)
+		log.SetFlags(log.Llongfile | log.Ldate | log.Ltime)
 	}
-
-	// 日志初始化
-	log.SetOutput(lf)
-	//log.SetFlags(log.Lmicroseconds | log.Lshortfile)
-	log.SetFlags(log.Llongfile | log.Ldate | log.Ltime)
-
 	return lf
 }
 
@@ -201,6 +206,11 @@ func (me *LogFile) createLogFile() {
 		if err != nil {
 			fmt.Println("存档日志文件失败 : ", err.Error())
 		}
+	}
+
+	_, err := os.Stat(me.fileName)
+	if os.IsNotExist(err) {
+		err = os.MkdirAll(filepath.Dir(me.fileName), 0700)
 	}
 
 	if fd, err := os.OpenFile(me.fileName, os.O_CREATE|os.O_APPEND, 0755); nil == err {
